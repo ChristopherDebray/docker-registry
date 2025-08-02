@@ -1,0 +1,36 @@
+name: Build & Push to Private Registry
+
+on:
+  push:
+    branches:
+      - main  # Triggers only when pushing on main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to private docker registry
+        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ REGISTRY_URL }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+
+      - name: Build & Push Docker Image
+        run: |
+          REGISTRY=${{ REGISTRY_URL }}
+          IMAGE=$REGISTRY/api
+          SHA_TAG=sha-${{ github.sha }}
+
+          echo "Build image $IMAGE:$SHA_TAG"
+          docker build -t $IMAGE:latest -t $IMAGE:$SHA_TAG .
+
+          echo "Push images to $REGISTRY"
+          docker push $IMAGE:latest
+          docker push $IMAGE:$SHA_TAG
+
+      - name: Clean up old images (keep last 4)
+        run: |
+          echo "Docker Registry v2 doesn't have an auto cleanup integration."
+          echo "To keep only the last 3-4 images,"
+          echo "you must use a garbage collector on your VPS (cron)."
