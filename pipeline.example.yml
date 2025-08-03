@@ -8,29 +8,41 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: production 
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Log in to private docker registry
-        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ REGISTRY_URL }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_URL }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
 
+        # --pull forces to use Docker Hub for node:XX, without it it would try to use your custom registry for all
       - name: Build & Push Docker Image
         run: |
-          REGISTRY=${{ REGISTRY_URL }}
-          IMAGE=$REGISTRY/api
-          SHA_TAG=sha-${{ github.sha }}
+          CUSTOM_REGISTRY=${{ secrets.REGISTRY_URL }}
+          IMAGE=$CUSTOM_REGISTRY/api
+          SHA_TAG=${{ github.sha }}
 
           echo "Build image $IMAGE:$SHA_TAG"
-          docker build -t $IMAGE:latest -t $IMAGE:$SHA_TAG .
+          docker build \
+            --pull \
+            -f {{ secrets.DOCKERFILE_PATH }} \
+            -t $IMAGE:latest \
+            -t $IMAGE:$SHA_TAG .
 
-          echo "Push images to $REGISTRY"
+          echo "Push images to $CUSTOM_REGISTRY"
           docker push $IMAGE:latest
           docker push $IMAGE:$SHA_TAG
 
-      - name: Clean up old images (keep last 4)
+      # Triggers the auto deploy instead of the coolify built in auto deploy
+      # Uuid is the application app id, the tag will be the one indicated in coolify ui, it should be "latest"
+      - name: Trigger Coolify Redeploy
         run: |
-          echo "Docker Registry v2 doesn't have an auto cleanup integration."
-          echo "To keep only the last 3-4 images,"
-          echo "you must use a garbage collector on your VPS (cron)."
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            ${{ secrets.COOLIFY_URL }}/api/v1/deploy \
+            -d '{
+              "uuid": "'"${{ secrets.COOLIFY_APP_ID }}"'"
+            }'

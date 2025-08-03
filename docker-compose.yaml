@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  registry:
+    image: registry:3
+    container_name: registry
+    environment:
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: Registry Realm
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+    volumes:
+      - /home/christopher_debray/externals/docker-registry/data:/var/lib/registry
+      - /home/christopher_debray/externals/docker-registry/auth:/auth
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.registry.rule=Host(`REGISTRY_DOMAIN`)"
+      - "traefik.http.routers.registry.entrypoints=websecure"
+      - "traefik.http.services.registry.loadbalancer.server.port=5000"
+
+networks:
+  coolify:
+    external: true
